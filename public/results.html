@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Saved Businesses</title>
+    <style>
+      body { font-family: sans-serif; max-width: 980px; margin: 2rem auto; padding: 0 1rem; }
+      table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+      th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      .status { margin-top: 1rem; padding: 0.75rem; border-radius: 6px; }
+      .error { background: #ffdede; }
+      .empty { background: #f2f2f2; }
+    </style>
+  </head>
+  <body>
+    <h1>Saved Businesses</h1>
+    <p><a href="/">Back to run</a></p>
+
+    <div class="toolbar">
+      <input id="city" placeholder="Filter city" />
+      <input id="category" placeholder="Filter category" />
+      <select id="source">
+        <option value="">All sources</option>
+        <option value="gemini">Gemini</option>
+        <option value="facebook">Facebook</option>
+        <option value="instagram">Instagram</option>
+        <option value="web_directory">Web directory</option>
+      </select>
+      <button id="apply">Apply filters</button>
+    </div>
+
+    <div id="status"></div>
+    <table id="table" hidden>
+      <thead>
+        <tr>
+          <th>Name</th><th>City</th><th>Category</th><th>Source</th><th>Phone</th><th>Confidence</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="toolbar">
+      <button id="prev">Previous</button>
+      <span id="meta"></span>
+      <button id="next">Next</button>
+    </div>
+
+    <script>
+      let page = 1;
+      const pageSize = 10;
+      let totalPages = 1;
+
+      const table = document.getElementById('table');
+      const tbody = table.querySelector('tbody');
+      const statusEl = document.getElementById('status');
+      const meta = document.getElementById('meta');
+
+      function setStatus(type, message) {
+        statusEl.className = `status ${type}`;
+        statusEl.textContent = message;
+      }
+
+      async function load() {
+        const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+        const city = document.getElementById('city').value.trim();
+        const category = document.getElementById('category').value.trim();
+        const source = document.getElementById('source').value;
+
+        if (city) params.set('city', city);
+        if (category) params.set('category', category);
+        if (source) params.set('source', source);
+
+        statusEl.className = '';
+        statusEl.textContent = 'Loading...';
+
+        try {
+          const response = await fetch(`/api/businesses?${params.toString()}`);
+          const payload = await response.json();
+          if (!response.ok) {
+            table.hidden = true;
+            setStatus('error', `Failed to load data: ${payload.error || 'Unknown error'}`);
+            return;
+          }
+
+          totalPages = payload.pagination.totalPages;
+          meta.textContent = `Page ${payload.pagination.page} of ${totalPages} (Total: ${payload.pagination.total})`;
+
+          if (!payload.data.length) {
+            table.hidden = true;
+            setStatus('empty', 'No businesses found for current filters.');
+            return;
+          }
+
+          tbody.innerHTML = payload.data.map((row) => `
+            <tr>
+              <td>${row.name}</td>
+              <td>${row.city}</td>
+              <td>${row.category}</td>
+              <td>${row.source}</td>
+              <td>${row.phone || ''}</td>
+              <td>${row.confidence_score}</td>
+            </tr>
+          `).join('');
+
+          table.hidden = false;
+          statusEl.className = '';
+          statusEl.textContent = '';
+        } catch (error) {
+          table.hidden = true;
+          setStatus('error', `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      document.getElementById('apply').addEventListener('click', () => {
+        page = 1;
+        load();
+      });
+      document.getElementById('prev').addEventListener('click', () => {
+        page = Math.max(1, page - 1);
+        load();
+      });
+      document.getElementById('next').addEventListener('click', () => {
+        page = Math.min(totalPages, page + 1);
+        load();
+      });
+
+      load();
+    </script>
+  </body>
+</html>

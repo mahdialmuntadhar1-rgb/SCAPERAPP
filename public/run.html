@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Run Discovery</title>
+    <style>
+      body { font-family: sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+      form { display: grid; gap: 0.75rem; }
+      fieldset { border: 1px solid #ccc; padding: 0.5rem 0.75rem; }
+      .status { padding: 0.75rem; border-radius: 6px; }
+      .loading { background: #fff7d6; }
+      .error { background: #ffdede; }
+      .success { background: #def8e6; }
+    </style>
+  </head>
+  <body>
+    <h1>Business Discovery Run</h1>
+    <p><a href="/results">View saved businesses</a></p>
+
+    <form id="runForm">
+      <label>
+        City
+        <input name="city" required placeholder="Baghdad" />
+      </label>
+
+      <label>
+        Category
+        <input name="category" required placeholder="Restaurants" />
+      </label>
+
+      <fieldset>
+        <legend>Sources</legend>
+        <label><input type="checkbox" name="sources" value="gemini" /> Gemini</label><br />
+        <label><input type="checkbox" name="sources" value="facebook" /> Facebook</label><br />
+        <label><input type="checkbox" name="sources" value="instagram" /> Instagram</label><br />
+        <label><input type="checkbox" name="sources" value="web_directory" /> Web directory</label>
+      </fieldset>
+
+      <button type="submit">Run discovery</button>
+    </form>
+
+    <div id="status"></div>
+
+    <script>
+      const form = document.getElementById('runForm');
+      const statusEl = document.getElementById('status');
+
+      function setStatus(type, html) {
+        statusEl.className = `status ${type}`;
+        statusEl.innerHTML = html;
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+        const city = String(formData.get('city') || '').trim();
+        const category = String(formData.get('category') || '').trim();
+        const sources = formData.getAll('sources').map(String);
+
+        if (!sources.length) {
+          setStatus('error', 'Pick at least one source.');
+          return;
+        }
+
+        setStatus('loading', 'Running discovery...');
+
+        try {
+          const response = await fetch('/api/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ city, category, sources })
+          });
+
+          const payload = await response.json();
+          if (!response.ok) {
+            setStatus('error', `<strong>Run failed:</strong> ${payload.error || 'Unknown error'}<pre>${JSON.stringify(payload.summary || payload.details || {}, null, 2)}</pre>`);
+            return;
+          }
+
+          setStatus('success', `<strong>Run complete.</strong><pre>${JSON.stringify(payload.summary, null, 2)}</pre>`);
+        } catch (error) {
+          setStatus('error', `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      });
+    </script>
+  </body>
+</html>
